@@ -22,7 +22,7 @@ def get_nodes_list(conn, options):
 		fail_usage("Failed: Incorrect Access Key or Secret Key.")
 	except EndpointConnectionError:
 		fail_usage("Failed: Incorrect Region.")
-	print(result)
+	print(result) #########################################
 	return result
 
 def get_power_status(conn, options):
@@ -123,6 +123,7 @@ For instructions see: https://boto3.readthedocs.io/en/latest/guide/quickstart.ht
 
 	# Operate the fencing device
 	result = fence_action(conn, options, set_power_status, get_power_status, get_nodes_list)
+	print(result) ###############################
 	sys.exit(result)
 
 if __name__ == "__main__":
