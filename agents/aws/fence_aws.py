@@ -1,18 +1,17 @@
-#!@PYTHON@ -tt
-
-import sys, re
-import logging
-import atexit
 ####################################################
-############PATH TO LIBS HARDCODED HERE#############
+############PATHS HARDCODED HERE#############
+#!/usr/bin/python -tt
+import sys, re
 sys.path.append("/usr/share/fence")
 ####################################################
 ####################################################
+import logging
+import atexit
 from fencing import *
 from fencing import fail, fail_usage, EC_TIMED_OUT, run_delay
-
 import boto3
 from botocore.exceptions import ClientError, EndpointConnectionError, NoRegionError
+
 
 def get_nodes_list(conn, options):
 	result = {}
