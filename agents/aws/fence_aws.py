@@ -3,7 +3,11 @@
 import sys, re
 import logging
 import atexit
-sys.path.append("@FENCEAGENTSLIBDIR@")
+####################################################
+############PATH TO LIBS HARDCODED HERE#############
+sys.path.append("/usr/share/fence")
+####################################################
+####################################################
 from fencing import *
 from fencing import fail, fail_usage, EC_TIMED_OUT, run_delay
 
