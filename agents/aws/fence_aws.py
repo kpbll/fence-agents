@@ -22,7 +22,7 @@ def get_nodes_list(conn, options):
 		fail_usage("Failed: Incorrect Access Key or Secret Key.")
 	except EndpointConnectionError:
 		fail_usage("Failed: Incorrect Region.")
-
+	print(result)
 	return result
 
 def get_power_status(conn, options):
