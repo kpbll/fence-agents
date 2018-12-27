@@ -24,7 +24,7 @@ def get_nodes_list(conn, options):
 
 def get_power_status(conn, options):
 	try:
-		instance = conn.instances.filter(Filters=[{"Name": "instance-id", "Values": [options["--plug"]]}])
+		instance = conn.instances.filter(Filters=[{"Name": "tag:Name", "Values": [options["--plug"]]}])
 		state = list(instance)[0].state["Name"]
 		if state == "running":
 			return "on"
@@ -42,9 +42,9 @@ def get_power_status(conn, options):
 
 def set_power_status(conn, options):
 	if (options["--action"]=="off"):
-		conn.instances.filter(InstanceIds=[options["--plug"]]).stop(Force=True)
+		conn.instances.filter(Filters=[{"Name": "tag:Name", "Values": [options["--plug"]]}]).stop(Force=True)
 	elif (options["--action"]=="on"):
-		conn.instances.filter(InstanceIds=[options["--plug"]]).start()
+		conn.instances.filter(Filters=[{"Name": "tag:Name", "Values": [options["--plug"]]}]).start()
 
 
 def define_new_opts():
