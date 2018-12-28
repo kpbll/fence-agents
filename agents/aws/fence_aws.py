@@ -86,7 +86,7 @@ def main():
 
 	define_new_opts()
 
-	all_opt["power_timeout"]["default"] = "60"
+	all_opt["power_timeout"]["default"] = "600"
 
 	options = check_input(device_opt, process_input(device_opt))
 
