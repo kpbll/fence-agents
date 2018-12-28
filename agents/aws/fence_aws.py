@@ -122,7 +122,6 @@ For instructions see: https://boto3.readthedocs.io/en/latest/guide/quickstart.ht
 
 	# Operate the fencing device
 	result = fence_action(conn, options, set_power_status, get_power_status, get_nodes_list)
-	print(result) ###############################
 	sys.exit(result)
 
 if __name__ == "__main__":
