@@ -22,7 +22,6 @@ def get_nodes_list(conn, options):
 		fail_usage("Failed: Incorrect Access Key or Secret Key.")
 	except EndpointConnectionError:
 		fail_usage("Failed: Incorrect Region.")
-	print(result) #########################################
 	return result
 
 def get_power_status(conn, options):
@@ -85,7 +84,7 @@ def main():
 	atexit.register(atexit_handler)
 
 	define_new_opts()
-
+	#This should be longer then reboot/off timeout in pacemaker
 	all_opt["power_timeout"]["default"] = "600"
 
 	options = check_input(device_opt, process_input(device_opt))
