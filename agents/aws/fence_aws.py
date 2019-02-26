@@ -1,6 +1,6 @@
 #!/usr/bin/python -tt
 
-import sys, re
+import sys, re, os
 import logging
 import atexit
 sys.path.append("/usr/share/fence")
@@ -11,6 +11,7 @@ import boto3
 from botocore.exceptions import ClientError, EndpointConnectionError, NoRegionError
 
 fenced_sg_name = "deny-all"
+app_sg_name = "APP_SG_live"
 
 def get_nodes_list(conn, options):
         result = {}
@@ -23,20 +24,21 @@ def get_nodes_list(conn, options):
                 fail_usage("Failed: Incorrect Region.")
         return result
 
+
 def get_power_status(conn, options):
+	node_fenced = False
 	try:
 		instance = list(conn.instances.filter(Filters=[{"Name": "tag:Name", "Values": [options["--plug"]]}]))[0]
 		fenced_sg = list(conn.security_groups.filter(Filters=[{"Name": "group-name", "Values": [fenced_sg_name]}]))[0]
 		state = instance.state["Name"]
-		
-
-		instance.modify_attribute(Groups=[fenced_sg.group_id])  
-		
-		
-
-		if state == "running":
+		print('Check node by ping...')
+		ping_response = True if os.system("ping -c 5 " + instance.private_ip_address) is 0 else False
+		for sg in instance.security_groups:
+			if sg['GroupId'] == fenced_sg.group_id:
+				node_fenced = True
+		if state == "running" and ping_response is True and node_fenced is False:
 			return "on"
-		elif state == "stopped":
+		elif state == "stopped" or (ping_response is False and node_fenced):
 			return "off"
 		else:
 			return "unknown"
@@ -49,10 +51,20 @@ def get_power_status(conn, options):
 		return "fail"
 
 def set_power_status(conn, options):
-        if (options["--action"]=="off"):
-                conn.instances.filter(Filters=[{"Name": "tag:Name", "Values": [options["--plug"]]}]).stop(Force=True)
-        elif (options["--action"]=="on"):
-                conn.instances.filter(Filters=[{"Name": "tag:Name", "Values": [options["--plug"]]}]).start()
+    fenced_sg = list(conn.security_groups.filter(Filters=[{"Name": "group-name", "Values": [fenced_sg_name]}]))[0]
+    app_sg = list(conn.security_groups.filter(Filters=[{"Name": "group-name", "Values": [app_sg_name]}]))[0]
+    instance = list(conn.instances.filter(Filters=[{"Name": "tag:Name", "Values": [options["--plug"]]}]))[0]
+    
+    if (options["--action"]=="off"):
+        print('Move instance to fenced_sg...')
+        instance.modify_attribute(Groups=[fenced_sg.group_id])
+        print('Stopping instance...')
+        instance.stop(Force=True)
+    elif (options["--action"]=="on"):
+        print('Move instance to app_sg...')
+        instance.modify_attribute(Groups=[app_sg.group_id])
+        print('Stopping instance...')
+        instance.start()
 
 
 def define_new_opts():
