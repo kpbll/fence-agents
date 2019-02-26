@@ -10,6 +10,7 @@ from fencing import fail, fail_usage, EC_TIMED_OUT, run_delay
 import boto3
 from botocore.exceptions import ClientError, EndpointConnectionError, NoRegionError
 
+
 fenced_sg_name = "deny-all"
 app_sg_name = "APP_SG_live"
 
@@ -29,14 +30,18 @@ def get_power_status(conn, options):
 	node_fenced = False
 	try:
 		instance = list(conn.instances.filter(Filters=[{"Name": "tag:Name", "Values": [options["--plug"]]}]))[0]
-		fenced_sg = list(conn.security_groups.filter(Filters=[{"Name": "group-name", "Values": [fenced_sg_name]}]))[0]
+		if "--network-fencing" in options:
+			fenced_sg = list(conn.security_groups.filter(Filters=[{"Name": "group-name", "Values": [fenced_sg_name]}]))[0]
+			print('Check node by ping...')
+			ping_response = True if os.system("ping -c 5 " + instance.private_ip_address) is 0 else False
+			for sg in instance.security_groups:
+				if sg['GroupId'] == fenced_sg.group_id:
+					node_fenced = True
+		
 		state = instance.state["Name"]
-		print('Check node by ping...')
-		ping_response = True if os.system("ping -c 5 " + instance.private_ip_address) is 0 else False
-		for sg in instance.security_groups:
-			if sg['GroupId'] == fenced_sg.group_id:
-				node_fenced = True
-		if state == "running" and ping_response is True and node_fenced is False:
+		if "--network-fencing" in options and state == "running" and ping_response is True and not node_fenced:
+			return "on"
+		elif "--network-fencing" not in options and state == "running":
 			return "on"
 		elif state == "stopped" or (ping_response is False and node_fenced):
 			return "off"
@@ -51,20 +56,26 @@ def get_power_status(conn, options):
 		return "fail"
 
 def set_power_status(conn, options):
-    fenced_sg = list(conn.security_groups.filter(Filters=[{"Name": "group-name", "Values": [fenced_sg_name]}]))[0]
-    app_sg = list(conn.security_groups.filter(Filters=[{"Name": "group-name", "Values": [app_sg_name]}]))[0]
-    instance = list(conn.instances.filter(Filters=[{"Name": "tag:Name", "Values": [options["--plug"]]}]))[0]
+	instance = list(conn.instances.filter(Filters=[{"Name": "tag:Name", "Values": [options["--plug"]]}]))[0]
+	if "--network-fencing" in options:
+		fenced_sg = list(conn.security_groups.filter(Filters=[{"Name": "group-name", "Values": [fenced_sg_name]}]))[0]
+		app_sg = list(conn.security_groups.filter(Filters=[{"Name": "group-name", "Values": [app_sg_name]}]))[0]
     
-    if (options["--action"]=="off"):
-        print('Move instance to fenced_sg...')
-        instance.modify_attribute(Groups=[fenced_sg.group_id])
-        print('Stopping instance...')
-        instance.stop(Force=True)
-    elif (options["--action"]=="on"):
-        print('Move instance to app_sg...')
-        instance.modify_attribute(Groups=[app_sg.group_id])
-        print('Stopping instance...')
-        instance.start()
+	if (options["--action"]=="off") and "--network-fencing" in options:
+		instance = list(conn.instances.filter(Filters=[{"Name": "tag:Name", "Values": [options["--plug"]]}]))[0]
+		print('Move instance to fenced_sg...')
+		instance.modify_attribute(Groups=[fenced_sg.group_id])
+		print('Stopping instance...')
+		instance.stop(Force=True)
+	elif (options["--action"]=="on") and "--network-fencing" in options:
+		print('Move instance to app_sg...')
+		instance.modify_attribute(Groups=[app_sg.group_id])
+		print('Starting instance...')
+		instance.start()
+	elif (options["--action"]=="off"):
+		instance.stop(Force=True)
+	elif (options["--action"]=="on"):
+		instance.start()
 
 
 def define_new_opts():
@@ -92,12 +103,20 @@ def define_new_opts():
                 "required" : "0",
                 "order" : 4
         }
+        all_opt["network-fencing"] = {
+                "getopt" : "",
+                "longopt" : "network-fencing",
+                "help" : "--network-fencing: enable moving the instance to special security group",
+                "shortdesc" : "turn on sg fencing",
+                "required" : "0",
+                "order" : 5
+        }
 
 # Main agent method
 def main():
         conn = None
 
-        device_opt = ["port", "no_password", "region", "access_key", "secret_key"]
+        device_opt = ["port", "no_password", "region", "access_key", "secret_key", "network-fencing"]
 
         atexit.register(atexit_handler)
 
