@@ -15,11 +15,11 @@ fenced_sg_name = "deny-all"
 app_sg_name = "launch-wizard-3"
 
 
-def get_filter(name, values):
+def get_filter(name, value):
         filter = [
                 {
                         "Name": name,
-                        "Values": [values]
+                        "Values": [value]
                 } 
         ]
         return filter
