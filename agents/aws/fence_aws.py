@@ -12,13 +12,13 @@ from botocore.exceptions import ClientError, EndpointConnectionError, NoRegionEr
 
 
 fenced_sg_name = "deny-all"
-app_sg_name = "APP_SG_live"
+app_sg_name = "launch-wizard-3"
 
 def get_nodes_list(conn, options):
         result = {}
         try:
                 for instance in conn.instances.all():
-                        result[instance.id] = ("", None)
+                        result[next(item for item in instance.tags if item["Key"] == "Name")['Value']] = ("", None)
         except ClientError:
                 fail_usage("Failed: Incorrect Access Key or Secret Key.")
         except EndpointConnectionError:
@@ -32,18 +32,16 @@ def get_power_status(conn, options):
 		instance = list(conn.instances.filter(Filters=[{"Name": "tag:Name", "Values": [options["--plug"]]}]))[0]
 		if "--network-fencing" in options:
 			fenced_sg = list(conn.security_groups.filter(Filters=[{"Name": "group-name", "Values": [fenced_sg_name]}]))[0]
-			print('Check node by ping...')
-			ping_response = True if os.system("ping -c 5 " + instance.private_ip_address) is 0 else False
 			for sg in instance.security_groups:
-				if sg['GroupId'] == fenced_sg.group_id:
+				if sg['GroupId'] == fenced_sg.group_id and len(instance.security_groups) == 1:
 					node_fenced = True
+
 		
 		state = instance.state["Name"]
-		if "--network-fencing" in options and state == "running" and ping_response is True and not node_fenced:
+                
+		if state == "running" and not node_fenced:
 			return "on"
-		elif "--network-fencing" not in options and state == "running":
-			return "on"
-		elif state == "stopped" or (ping_response is False and node_fenced):
+		elif state == "stopped" or node_fenced:
 			return "off"
 		else:
 			return "unknown"
@@ -56,21 +54,18 @@ def get_power_status(conn, options):
 		return "fail"
 
 def set_power_status(conn, options):
+
 	instance = list(conn.instances.filter(Filters=[{"Name": "tag:Name", "Values": [options["--plug"]]}]))[0]
+	
 	if "--network-fencing" in options:
 		fenced_sg = list(conn.security_groups.filter(Filters=[{"Name": "group-name", "Values": [fenced_sg_name]}]))[0]
 		app_sg = list(conn.security_groups.filter(Filters=[{"Name": "group-name", "Values": [app_sg_name]}]))[0]
     
 	if (options["--action"]=="off") and "--network-fencing" in options:
-		instance = list(conn.instances.filter(Filters=[{"Name": "tag:Name", "Values": [options["--plug"]]}]))[0]
-		print('Move instance to fenced_sg...')
 		instance.modify_attribute(Groups=[fenced_sg.group_id])
-		print('Stopping instance...')
 		instance.stop(Force=True)
 	elif (options["--action"]=="on") and "--network-fencing" in options:
-		print('Move instance to app_sg...')
 		instance.modify_attribute(Groups=[app_sg.group_id])
-		print('Starting instance...')
 		instance.start()
 	elif (options["--action"]=="off"):
 		instance.stop(Force=True)
@@ -122,21 +117,29 @@ def main():
 
         define_new_opts()
         #This should be longer then reboot/off timeout in pacemaker
-        all_opt["power_timeout"]["default"] = "600"
+        all_opt["power_timeout"]["default"] = "601"
 
         options = check_input(device_opt, process_input(device_opt))
 
         docs = {}
         docs["shortdesc"] = "Fence agent for AWS (Amazon Web Services)"
-        docs["longdesc"] = "fence_aws is an I/O Fencing agent for AWS (Amazon Web\
+        docs["longdesc"] = """fence_aws is an I/O Fencing agent for AWS (Amazon Web\
 Services). It uses the boto3 library to connect to AWS.\
 \n.P\n\
 boto3 can be configured with AWS CLI or by creating ~/.aws/credentials.\n\
-For instructions see: https://boto3.readthedocs.io/en/latest/guide/quickstart.html#configuration"
+For instructions see: https://boto3.readthedocs.io/en/latest/guide/quickstart.html#configuration. \n \ 
+When using network fencing the reboot-action will cause a quick-return once the network has been fenced \ 
+(instead of waiting for the off-action to succeed). \n \
+Reboot action will transform to off if network-fencing is on. \n \ 
+Attention: Please define fenced_sg_name(sg for fenced nodes) and app_sg_name(regular sg for nodes, \
+only one sg to 'on' action supported now) variables as your security group named"""
         docs["vendorurl"] = "http://www.amazon.com"
         show_docs(options, docs)
 
         run_delay(options)
+
+        if "--network-fencing" in options and options["--action"] == "reboot":
+                options["--action"] = "off"
 
         if "--region" in options and "--access-key" in options and "--secret-key" in options:
                 region = options["--region"]
