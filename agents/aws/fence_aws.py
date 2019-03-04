@@ -6,13 +6,24 @@ import atexit
 sys.path.append("/usr/share/fence")
 from fencing import *
 from fencing import fail, fail_usage, EC_TIMED_OUT, run_delay
-
 import boto3
 from botocore.exceptions import ClientError, EndpointConnectionError, NoRegionError
 
 
+
 fenced_sg_name = "deny-all"
 app_sg_name = "launch-wizard-3"
+
+
+def get_filter(name, values):
+        filter = [
+                {
+                        "Name": name,
+                        "Values": [values]
+                } 
+        ]
+        return filter
+
 
 def get_nodes_list(conn, options):
         result = {}
@@ -27,50 +38,57 @@ def get_nodes_list(conn, options):
 
 
 def get_power_status(conn, options):
-	node_fenced = False
-	try:
-		instance = list(conn.instances.filter(Filters=[{"Name": "tag:Name", "Values": [options["--plug"]]}]))[0]
-		if "--network-fencing" in options:
-			fenced_sg = list(conn.security_groups.filter(Filters=[{"Name": "group-name", "Values": [fenced_sg_name]}]))[0]
-			for sg in instance.security_groups:
-				if sg['GroupId'] == fenced_sg.group_id and len(instance.security_groups) == 1:
-					node_fenced = True
+        node_fenced = False
+        instance_name = options["--plug"]
+        try:
+                instances = conn.instances.filter(Filters=get_filter('tag:Name', instance_name))
+                instance = list(instances)[0]
+                if "--network-fencing" in options:
+                        fenced_sg_list = conn.security_groups.filter(Filters=get_filter('group-name', fenced_sg_name))
+                        fenced_sg = list(fenced_sg_list)[0]
+                        for sg in instance.security_groups:
+                                if sg['GroupId'] == fenced_sg.group_id and len(instance.security_groups) == 1:
+                                        node_fenced = True
 
-		
-		state = instance.state["Name"]
+                state = instance.state["Name"]
                 
-		if state == "running" and not node_fenced:
-			return "on"
-		elif state == "stopped" or node_fenced:
-			return "off"
-		else:
-			return "unknown"
+                if state == "running" and not node_fenced:
+                        return "on"
+                elif state == "stopped" or node_fenced:
+                        return "off"
+                else:
+                        return "unknown"
 
-	except ClientError:
-		fail_usage("Failed: Incorrect Access Key or Secret Key.")
-	except EndpointConnectionError:
-		fail_usage("Failed: Incorrect Region.")
-	except IndexError:
-		return "fail"
+        except ClientError:
+                fail_usage("Failed: Incorrect Access Key or Secret Key.")
+        except EndpointConnectionError:
+                fail_usage("Failed: Incorrect Region.")
+        except IndexError:
+                return "fail"
+
 
 def set_power_status(conn, options):
 
-	instance = list(conn.instances.filter(Filters=[{"Name": "tag:Name", "Values": [options["--plug"]]}]))[0]
+        instance_name = options["--plug"]
+        instances = conn.instances.filter(Filters=get_filter('taf:Name', instance_name))
+        instance = list(instances)[0]
 	
-	if "--network-fencing" in options:
-		fenced_sg = list(conn.security_groups.filter(Filters=[{"Name": "group-name", "Values": [fenced_sg_name]}]))[0]
-		app_sg = list(conn.security_groups.filter(Filters=[{"Name": "group-name", "Values": [app_sg_name]}]))[0]
+        if "--network-fencing" in options:
+                fenced_sg_list = conn.security_groups.filter(Filters=get_filter('group-name', fenced_sg_name))
+                fenced_sg = list(fenced_sg_list)[0]
+                app_sg_list = conn.security_groups.filter(Filters=get_filter('group-name', app_sg_name))
+                app_sg = list(app_sg_list)[0]
     
-	if (options["--action"]=="off") and "--network-fencing" in options:
-		instance.modify_attribute(Groups=[fenced_sg.group_id])
-		instance.stop(Force=True)
-	elif (options["--action"]=="on") and "--network-fencing" in options:
-		instance.modify_attribute(Groups=[app_sg.group_id])
-		instance.start()
-	elif (options["--action"]=="off"):
-		instance.stop(Force=True)
-	elif (options["--action"]=="on"):
-		instance.start()
+        if (options["--action"]=="off") and "--network-fencing" in options:
+                instance.modify_attribute(Groups=[fenced_sg.group_id])
+                instance.stop(Force=True)
+        elif (options["--action"]=="on") and "--network-fencing" in options:
+                instance.modify_attribute(Groups=[app_sg.group_id])
+                instance.start()
+        elif (options["--action"]=="off"):
+                instance.stop(Force=True)
+        elif (options["--action"]=="on"):
+                instance.start()
 
 
 def define_new_opts():
@@ -117,7 +135,7 @@ def main():
 
         define_new_opts()
         #This should be longer then reboot/off timeout in pacemaker
-        all_opt["power_timeout"]["default"] = "601"
+        all_opt["power_timeout"]["default"] = "600"
 
         options = check_input(device_opt, process_input(device_opt))
 
