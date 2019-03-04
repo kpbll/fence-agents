@@ -11,8 +11,8 @@ from botocore.exceptions import ClientError, EndpointConnectionError, NoRegionEr
 
 
 
-fenced_sg_name = "deny-all"
-app_sg_name = "launch-wizard-3"
+fenced_sg_name = "APP_SG_FENCED"
+app_sg_name = "APP_SG_live"
 
 
 def get_filter(name, value):
@@ -25,7 +25,7 @@ def get_filter(name, value):
         return filter
 
 
-def get_nodes_list(conn, options):
+def get_nodes_list(conn, options):    
         result = {}
         try:
                 for instance in conn.instances.all():
@@ -37,7 +37,7 @@ def get_nodes_list(conn, options):
         return result
 
 
-def get_power_status(conn, options):
+def get_power_status(conn, options):     
         node_fenced = False
         instance_name = options["--plug"]
         try:
@@ -68,9 +68,8 @@ def get_power_status(conn, options):
 
 
 def set_power_status(conn, options):
-
         instance_name = options["--plug"]
-        instances = conn.instances.filter(Filters=get_filter('taf:Name', instance_name))
+        instances = conn.instances.filter(Filters=get_filter('tag:Name', instance_name))
         instance = list(instances)[0]
 	
         if "--network-fencing" in options:
@@ -81,10 +80,10 @@ def set_power_status(conn, options):
     
         if (options["--action"]=="off") and "--network-fencing" in options:
                 instance.modify_attribute(Groups=[fenced_sg.group_id])
-                instance.stop(Force=True)
+                #instance.stop(Force=True)
         elif (options["--action"]=="on") and "--network-fencing" in options:
                 instance.modify_attribute(Groups=[app_sg.group_id])
-                instance.start()
+                #instance.start()
         elif (options["--action"]=="off"):
                 instance.stop(Force=True)
         elif (options["--action"]=="on"):
