@@ -12,7 +12,7 @@ from botocore.exceptions import ClientError, EndpointConnectionError, NoRegionEr
 
 
 fenced_sg_name = "APP_SG_FENCED"
-app_sg_name = "APP_SG_live"
+app_sg_name = "launch-wizard-3"
 
 
 def get_filter(name, value):
@@ -83,7 +83,7 @@ def set_power_status(conn, options):
                 #instance.stop(Force=True)
         elif (options["--action"]=="on") and "--network-fencing" in options:
                 instance.modify_attribute(Groups=[app_sg.group_id])
-                #instance.start()
+                instance.start()
         elif (options["--action"]=="off"):
                 instance.stop(Force=True)
         elif (options["--action"]=="on"):
